@@ -12,5 +12,15 @@ jobs:
   run-k3d-argo:
     runs-on: nscloud
     steps:
-      - run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+      - run: |
+          curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.0-rc2/argo-linux-amd64.gz
+          gunzip argo-linux-amd64.gz
+          chmod +x argo-linux-amd64
       - run: k3d cluster create --agents 2
+      - run: |
+          ./kubectl create namespace argo
+          ./kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.4.11/install.yaml
+      - run: ./argo-linux-amd64 submit -n argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/hello-world.yaml
