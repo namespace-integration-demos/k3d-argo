@@ -1,0 +1,10 @@
+name: e2e
+on:
+  workflow_dispatch:
+
+jobs:
+  run-k3d-argo:
+    runs-on: nscloud
+  steps:
+    - run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
+    - run: k3d cluster create --agents 2
