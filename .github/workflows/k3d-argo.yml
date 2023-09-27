@@ -12,15 +12,52 @@ jobs:
   run-k3d-argo:
     runs-on: nscloud
     steps:
-      - run: |
+      - name: Install deps
+        run: |
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
           curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.0-rc2/argo-linux-amd64.gz
           gunzip argo-linux-amd64.gz
           chmod +x argo-linux-amd64
-      - run: k3d cluster create --agents 2
-      - run: |
+
+      - name: Start Localstack
+        run: |
+          cat <<EOT > devhost.textpb
+          version: "3.8"
+
+          services:
+            localstack:
+              container_name: "${LOCALSTACK_DOCKER_NAME-localstack_main}"
+              image: localstack/localstack
+              ports:
+                - "127.0.0.1:4566:4566"            # LocalStack Gateway
+                - "127.0.0.1:4510-4559:4510-4559"  # external services port range
+              environment:
+                - DEBUG=${DEBUG-}
+                - DOCKER_HOST=unix:///var/run/docker.sock
+              volumes:
+                - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"
+                - "/var/run/docker.sock:/var/run/docker.sock"
+          EOT
+
+          docker-compose up -d
+
+      - name: Start k3d in Localstack network
+        run: |
+          export LOCALSTACK_IP=$(docker inspect localstack_main --format='{{.NetworkSettings.Networks.localstack.IPAddress}}') 
+
+          export CLUSTER_NAME="DefaultCluster"
+
+          k3d cluster create $CLUSTER_NAME \
+            --network localstack \
+            --host-alias $LOCALSTACK_IP:localstack \
+            --agents 2
+
+      - name: Install Argo in k3d
+        run: |
           ./kubectl create namespace argo
           ./kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.4.11/install.yaml
-      - run: ./argo-linux-amd64 submit -n argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/hello-world.yaml
+
+      - name: Test sample deployment with Argo
+        run: ./argo-linux-amd64 submit -n argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/hello-world.yaml
