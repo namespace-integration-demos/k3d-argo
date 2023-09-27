@@ -23,7 +23,7 @@ jobs:
 
       - name: Start Localstack
         run: |
-          cat <<EOT > devhost.textpb
+          cat <<EOT > docker-compose.yml
           version: "3.8"
 
           services:
