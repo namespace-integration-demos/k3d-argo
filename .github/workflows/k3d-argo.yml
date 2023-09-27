@@ -41,7 +41,6 @@ jobs:
                 - "/var/run/docker.sock:/var/run/docker.sock"
           networks:
             default:
-              external: true
               name: "localstack"
           EOT
 
