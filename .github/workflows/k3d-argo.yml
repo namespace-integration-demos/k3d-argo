@@ -47,7 +47,7 @@ jobs:
 
       - name: Dump coredns config
         run: |
-          kubectl -n kube-system describe configmap coredns
+          ./kubectl -n kube-system describe configmap coredns
 
       - name: Install Argo in k3d
         run: |
