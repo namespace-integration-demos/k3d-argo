@@ -45,14 +45,23 @@ jobs:
             --host-alias $LOCALSTACK_IP:localstack \
             --agents 2
 
-      - name: Dump coredns config
+      - name: Wait until Docker neighbors are available
         run: |
-          ./kubectl -n kube-system get events --field-selector involvedObject.name=coredns
-          ./kubectl -n kube-system describe configmap coredns
+          COUNTER=0
+          while true ; do
+            if ./kubectl -n kube-system get configmap coredns -o json | jq -r .data.NodeHosts | grep -q localstack ; then
+              break
+            fi
 
-          sleep 10
+            COUNTER=$((COUNTER+1))
+            if [[ $COUNTER -ge 20 ]]; then
+                echo giving up
+                ./kubectl -n kube-system describe configmap coredns
+                exit 1
+            fi
+            sleep 1
+          done
 
-          ./kubectl -n kube-system get events --field-selector involvedObject.name=coredns
           ./kubectl -n kube-system describe configmap coredns
 
       - name: Install Argo in k3d
