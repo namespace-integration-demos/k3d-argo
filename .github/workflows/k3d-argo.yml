@@ -12,15 +12,69 @@ jobs:
   run-k3d-argo:
     runs-on: nscloud
     steps:
-      - run: |
+      - name: Install deps
+        run: |
           curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash
           curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
           chmod +x kubectl
           curl -sLO https://github.com/argoproj/argo-workflows/releases/download/v3.5.0-rc2/argo-linux-amd64.gz
           gunzip argo-linux-amd64.gz
           chmod +x argo-linux-amd64
-      - run: k3d cluster create --agents 2
-      - run: |
+
+      - name: Start Localstack
+        run: |
+          curl -sLO https://raw.githubusercontent.com/localstack/localstack/master/docker-compose.yml
+
+          # Pin the network name 
+          cat <<EOT >> docker-compose.yml
+          networks:
+            default:
+              name: "localstack"
+          EOT
+
+          docker-compose up -d
+
+      - name: Start k3d in Localstack network
+        run: |
+          export LOCALSTACK_IP=$(docker inspect localstack_main --format='{{.NetworkSettings.Networks.localstack.IPAddress}}') 
+
+          export CLUSTER_NAME="DefaultCluster"
+
+          k3d cluster create $CLUSTER_NAME \
+            --network localstack \
+            --host-alias $LOCALSTACK_IP:localstack \
+            --agents 2
+
+      - name: Print initial coredns configmap
+        run: |
+          ./kubectl -n kube-system describe configmap coredns
+
+      - name: Wait until Docker neighbors are available
+        run: |
+          start=$SECONDS
+          while true ; do
+            duration=$(( SECONDS - start ))
+            if [[ $duration -ge 30 ]]; then
+                echo Giving up after $duration seconds.
+                ./kubectl -n kube-system describe configmap coredns
+                exit 1
+            fi
+
+            if ./kubectl -n kube-system get configmap coredns -o json | jq -r .data.NodeHosts | grep -q localstack ; then
+              echo Found neighbors after $duration seconds.
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Print updated coredns configmap
+        run: |
+          ./kubectl -n kube-system describe configmap coredns
+
+      - name: Install Argo in k3d
+        run: |
           ./kubectl create namespace argo
           ./kubectl apply -n argo -f https://github.com/argoproj/argo-workflows/releases/download/v3.4.11/install.yaml
-      - run: ./argo-linux-amd64 submit -n argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/hello-world.yaml
+
+      - name: Test sample deployment with Argo
+        run: ./argo-linux-amd64 submit -n argo --watch https://raw.githubusercontent.com/argoproj/argo-workflows/master/examples/hello-world.yaml
