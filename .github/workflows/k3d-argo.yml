@@ -45,6 +45,10 @@ jobs:
             --host-alias $LOCALSTACK_IP:localstack \
             --agents 2
 
+      - name: Dump coredns config
+        run: |
+          kubectl -n kube-system describe configmap coredns
+
       - name: Install Argo in k3d
         run: |
           ./kubectl create namespace argo
