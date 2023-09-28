@@ -47,21 +47,24 @@ jobs:
 
       - name: Wait until Docker neighbors are available
         run: |
-          COUNTER=0
+          start=$SECONDS
           while true ; do
-            if ./kubectl -n kube-system get configmap coredns -o json | jq -r .data.NodeHosts | grep -q localstack ; then
-              break
-            fi
-
-            COUNTER=$((COUNTER+1))
-            if [[ $COUNTER -ge 20 ]]; then
-                echo giving up
+            duration=$(( SECONDS - start ))
+            if [[ $duration -ge 30 ]]; then
+                echo giving up after 30s
                 ./kubectl -n kube-system describe configmap coredns
                 exit 1
+            fi
+
+            if ./kubectl -n kube-system get configmap coredns -o json | jq -r .data.NodeHosts | grep -q localstack ; then
+              echo Found neighbors after $duration seconds.
+              break
             fi
             sleep 1
           done
 
+      - name: Print coredns configmap
+        run: |
           ./kubectl -n kube-system describe configmap coredns
 
       - name: Install Argo in k3d
