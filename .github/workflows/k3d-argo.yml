@@ -47,10 +47,12 @@ jobs:
 
       - name: Dump coredns config
         run: |
+          ./kubectl -n kube-system get events --field-selector involvedObject.name=coredns
           ./kubectl -n kube-system describe configmap coredns
 
           sleep 10
 
+          ./kubectl -n kube-system get events --field-selector involvedObject.name=coredns
           ./kubectl -n kube-system describe configmap coredns
 
       - name: Install Argo in k3d
