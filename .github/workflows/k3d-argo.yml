@@ -45,13 +45,17 @@ jobs:
             --host-alias $LOCALSTACK_IP:localstack \
             --agents 2
 
+      - name: Print initial coredns configmap
+        run: |
+          ./kubectl -n kube-system describe configmap coredns
+
       - name: Wait until Docker neighbors are available
         run: |
           start=$SECONDS
           while true ; do
             duration=$(( SECONDS - start ))
             if [[ $duration -ge 30 ]]; then
-                echo giving up after 30s
+                echo Giving up after $duration seconds.
                 ./kubectl -n kube-system describe configmap coredns
                 exit 1
             fi
@@ -63,7 +67,7 @@ jobs:
             sleep 1
           done
 
-      - name: Print coredns configmap
+      - name: Print updated coredns configmap
         run: |
           ./kubectl -n kube-system describe configmap coredns
 
